@@ -1,4 +1,4 @@
-# Applies the embedded WaterLens logo and “WaterLens with UNO Q” name to the existing local dashboard without external assets. 2026-09-08 21:38 Europe/Helsinki, Thomas Vikström.
+# Applies the embedded WaterLens logo and “WaterLens with UNO Q” name to the existing local dashboard without external assets. 2026-09-08 21:43 Europe/Helsinki, Thomas Vikström.
 
 import sys
 import threading
@@ -36,18 +36,28 @@ def _brand_page(page):
     return page
 
 
+def _find_dashboard_module():
+    for module in list(sys.modules.values()):
+        if module is not None and callable(getattr(module, "dashboard_html", None)):
+            return module
+    return None
+
+
 def _install_when_ready():
-    main_module = sys.modules.get("__main__")
-
     for _ in range(500):
-        original = getattr(main_module, "dashboard_html", None)
+        dashboard_module = _find_dashboard_module()
 
-        if callable(original) and not getattr(original, "_waterlens_branded", False):
+        if dashboard_module is not None:
+            original = dashboard_module.dashboard_html
+
+            if getattr(original, "_waterlens_branded", False):
+                return
+
             def branded_dashboard_html():
                 return _brand_page(original())
 
             branded_dashboard_html._waterlens_branded = True
-            main_module.dashboard_html = branded_dashboard_html
+            dashboard_module.dashboard_html = branded_dashboard_html
             print("WaterLens dashboard branding enabled")
             return
 
