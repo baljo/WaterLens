@@ -1,4 +1,4 @@
-# Provides a tiny local API that explicitly switches UNO Q Wi-Fi between WaterLens AP mode and saved client Wi-Fi. 2026-09-08 21:17 Europe/Helsinki, Thomas Vikström.
+# Provides explicit WaterLens hotspot control and restores the exact Wi-Fi profile that was active before AP mode. 2026-09-08 21:54 Europe/Helsinki, Thomas Vikström.
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import subprocess
@@ -10,8 +10,12 @@ HOTSPOT_PROFILE = "Hotspot"
 HOTSPOT_SSID = "WaterLens"
 HOTSPOT_IP = "10.42.0.1"
 
+# Remember the exact client profile that was active when offline mode was started.
+# This avoids relying on NetworkManager to guess which saved network to reconnect.
+previous_wifi_profile = ""
 
-def run_nmcli(*args, timeout=20):
+
+def run_nmcli(*args, timeout=30):
     completed = subprocess.run(
         ["nmcli", *args],
         capture_output=True,
@@ -34,6 +38,23 @@ def active_wifi_profile():
     return ""
 
 
+def saved_client_profiles():
+    """Return saved Wi-Fi profiles other than the WaterLens hotspot."""
+    output = run_nmcli("-t", "-f", "NAME,TYPE", "connection", "show")
+    profiles = []
+
+    for line in output.splitlines():
+        parts = line.rsplit(":", 1)
+        if len(parts) != 2:
+            continue
+
+        name, connection_type = parts
+        if connection_type == "802-11-wireless" and name != HOTSPOT_PROFILE:
+            profiles.append(name)
+
+    return profiles
+
+
 def wifi_ipv4():
     output = run_nmcli("-g", "IP4.ADDRESS", "device", "show", WIFI_DEVICE)
     first = output.splitlines()[0].strip() if output else ""
@@ -48,20 +69,55 @@ def status_payload():
         "hotspot": profile == HOTSPOT_PROFILE,
         "ssid": HOTSPOT_SSID if profile == HOTSPOT_PROFILE else "",
         "ip": wifi_ipv4(),
+        "previous_profile": previous_wifi_profile,
     }
 
 
 def start_hotspot():
+    global previous_wifi_profile
+
+    current = active_wifi_profile()
+
+    if current and current != HOTSPOT_PROFILE:
+        previous_wifi_profile = current
+
     run_nmcli("connection", "up", HOTSPOT_PROFILE)
     return status_payload()
 
 
 def return_to_wifi():
-    profile = active_wifi_profile()
-    if profile == HOTSPOT_PROFILE:
-        run_nmcli("connection", "down", HOTSPOT_PROFILE)
-    run_nmcli("device", "connect", WIFI_DEVICE)
-    return status_payload()
+    global previous_wifi_profile
+
+    # Prefer the exact Wi-Fi profile that was active before hotspot mode.
+    candidates = []
+
+    if previous_wifi_profile and previous_wifi_profile != HOTSPOT_PROFILE:
+        candidates.append(previous_wifi_profile)
+
+    # Recovery fallback for cases where the network-control brick was restarted
+    # while hotspot mode was active and therefore lost the in-memory profile.
+    for profile in saved_client_profiles():
+        if profile not in candidates:
+            candidates.append(profile)
+
+    last_error = "No saved normal Wi-Fi profile is available"
+
+    for profile in candidates:
+        try:
+            # Bringing the client profile up directly is the same method that was
+            # verified manually on the UNO Q; NetworkManager replaces the AP on wlan0.
+            run_nmcli("connection", "up", profile, timeout=40)
+            active = active_wifi_profile()
+
+            if active == profile:
+                previous_wifi_profile = profile
+                return status_payload()
+
+            last_error = f"Profile '{profile}' did not become active"
+        except Exception as error:
+            last_error = str(error)
+
+    raise RuntimeError(last_error)
 
 
 class Handler(BaseHTTPRequestHandler):
