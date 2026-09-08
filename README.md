@@ -1,4 +1,4 @@
-WaterLens
+# WaterLens
 Edge AI water analysis with Arduino UNO Q
 
 WaterLens is an experimental water-analysis prototype built with the Arduino UNO Q, four Grove water sensors, Edge Impulse machine learning, and a local web dashboard.
