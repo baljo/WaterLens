@@ -1,2 +1,6 @@
-# ignore app cache folder
+# Ignore App Lab/Python runtime files and archived pre-correction sample backups.
 .cache/
+.venv/
+__pycache__/
+*.py[cod]
+python/samples/original_samples_backup/
