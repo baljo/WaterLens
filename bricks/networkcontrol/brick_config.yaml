@@ -1,0 +1,4 @@
+# Defines the WaterLens custom App Lab Brick that controls explicit offline Wi-Fi mode. 2026-09-08 21:15 Europe/Helsinki, Thomas Vikström.
+id: networkcontrol
+name: WaterLens Network Control
+description: Explicitly switches the UNO Q host between normal Wi-Fi and the WaterLens offline access point.
