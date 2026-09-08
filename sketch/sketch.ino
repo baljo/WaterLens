@@ -1,4 +1,4 @@
-// Adds once-per-second live A0-A3 ADC diagnostics plus repeated pH/ORP reads without changing the normal water sampling workflow. Thomas Vikström, 2026-09-05 16:29 Europe/Helsinki.
+// Runs the WaterLens sampling/test workflows and adds an explicit menu-controlled offline Wi-Fi mode without automatic network switching. 2026-09-08 20:44 Europe/Helsinki, Thomas Vikström.
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -13,12 +13,7 @@
 constexpr uint8_t PH_PIN = A0;
 constexpr uint8_t TDS_PIN = A1;
 constexpr uint8_t TURBIDITY_PIN = A2;
-
-// Grove ORP Sensor Kit Pro:
-// A3 = SIG
-// A4 = CAL
 constexpr uint8_t ORP_PIN = A3;
-constexpr uint8_t ORP_CAL_PIN = A4;
 
 
 // ------------------------------------------------------------
@@ -56,7 +51,6 @@ uint8_t selectedLabel = 0;
 // OLED
 // ------------------------------------------------------------
 
-// Keep the same constructor that already works with the SSD1315 module.
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C oled(
     U8G2_R0,
     U8X8_PIN_NONE
@@ -64,37 +58,67 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C oled(
 
 
 // ------------------------------------------------------------
-// QR code
+// Dashboard QR codes
 // ------------------------------------------------------------
 
-// QR payload: http://192.168.178.34:8000
-const uint32_t QR_ROWS[25] = {
-    0x1FD3C7F,
-    0x104CE41,
-    0x1745B5D,
-    0x1741F5D,
-    0x174AC5D,
-    0x1045441,
+// QR payload: http://uno-q.local:8000
+const uint32_t NORMAL_QR_ROWS[25] = {
+    0x1FC9E7F,
+    0x1047F41,
+    0x175D55D,
+    0x174E25D,
+    0x1744A5D,
+    0x1048341,
     0x1FD557F,
-    0x0016A00,
-    0x1B4E841,
-    0x18896FE,
-    0x0556409,
-    0x100F12F,
-    0x10FBEB1,
-    0x1A90DB2,
-    0x1FE3B7F,
-    0x15BA6D5,
-    0x11587FE,
-    0x001F916,
-    0x1FC235D,
-    0x1049715,
-    0x1751DF3,
-    0x175442D,
-    0x1745567,
-    0x10544FB,
-    0x1FD8D59
+    0x001D800,
+    0x1DF6DC4,
+    0x07B65C1,
+    0x10E8487,
+    0x0D12952,
+    0x0A51F4B,
+    0x062BDC9,
+    0x16D35B7,
+    0x0E2DB0A,
+    0x1646FF8,
+    0x0016F1F,
+    0x1FDC753,
+    0x105E919,
+    0x1759DF3,
+    0x1747F14,
+    0x175F6B9,
+    0x1059B9A,
+    0x1FDB5E3
 };
+
+// QR payload: http://10.42.0.1:8000
+const uint32_t OFFLINE_QR_ROWS[25] = {
+    0x1FD317F,
+    0x104CC41,
+    0x174595D,
+    0x1741E5D,
+    0x174A05D,
+    0x1045041,
+    0x1FD557F,
+    0x0016C00,
+    0x1B4E241,
+    0x093931E,
+    0x1F66619,
+    0x182F28F,
+    0x0AEB5C1,
+    0x1428AB2,
+    0x1F57BCF,
+    0x13B2555,
+    0x16DC7F6,
+    0x001FB12,
+    0x1FC2159,
+    0x1041513,
+    0x1755FFB,
+    0x175C46B,
+    0x1749517,
+    0x10544F7,
+    0x1FDCF89
+};
+
 
 // ------------------------------------------------------------
 // Sample storage
@@ -119,7 +143,8 @@ SampleRow rows[SAMPLE_ROWS];
 enum class MainMode : uint8_t
 {
     Collect,
-    Test
+    Test,
+    Offline
 };
 
 enum class BlueAction : uint8_t
@@ -322,15 +347,20 @@ void drawModeSelection()
     oled.setFont(u8g2_font_6x10_tf);
     centerText("SELECT MODE", 11);
 
-    oled.setFont(u8g2_font_helvB12_tf);
-
-    if (selectedMode == MainMode::Collect)
+    if (selectedMode == MainMode::Offline)
     {
-        centerText("COLLECT DATA", 39);
+        oled.setFont(u8g2_font_helvB10_tf);
+        centerText("OFFLINE CONNECTION", 39);
     }
     else
     {
-        centerText("TEST WATER", 39);
+        oled.setFont(u8g2_font_helvB12_tf);
+        centerText(
+            selectedMode == MainMode::Collect
+                ? "COLLECT DATA"
+                : "TEST WATER",
+            39
+        );
     }
 
     oled.setFont(u8g2_font_6x10_tf);
@@ -426,25 +456,22 @@ void drawTestResult(
 }
 
 
-void drawReportQr()
+void drawReportQr(const uint32_t* qrRows)
 {
     constexpr int modules = 25;
     constexpr int scale = 2;
     constexpr int border = 2;
 
     constexpr int totalModules = modules + border * 2;
-    constexpr int qrSize = totalModules * scale;  // 58 x 58 pixels
+    constexpr int qrSize = totalModules * scale;
 
     const int x0 = (128 - qrSize) / 2;
     const int y0 = (64 - qrSize) / 2;
 
     oled.clearBuffer();
 
-    // Lit OLED pixels form the QR background.
     oled.setDrawColor(1);
     oled.drawBox(x0, y0, qrSize, qrSize);
-
-    // Clear pixels for the black QR modules.
     oled.setDrawColor(0);
 
     for (int row = 0; row < modules; ++row)
@@ -452,7 +479,7 @@ void drawReportQr()
         for (int col = 0; col < modules; ++col)
         {
             bool black =
-                QR_ROWS[row] & (1UL << (modules - 1 - col));
+                qrRows[row] & (1UL << (modules - 1 - col));
 
             if (black)
             {
@@ -492,7 +519,7 @@ void loadDefaultLabels()
 bool waitForLinux()
 {
     drawMessage(
-        "WATER SAMPLE",
+        "WATERLENS",
         "STARTING",
         "Linux Bridge"
     );
@@ -550,6 +577,34 @@ bool loadLabelsFromLinux()
 
 
 // ------------------------------------------------------------
+// Network helpers
+// ------------------------------------------------------------
+
+bool offlineConnectionActive()
+{
+    bool active = false;
+    Bridge.call("offline_connection_active").result(active);
+    return active;
+}
+
+
+bool startOfflineConnection()
+{
+    bool ok = false;
+    Bridge.call("start_offline_connection").result(ok);
+    return ok;
+}
+
+
+bool stopOfflineConnection()
+{
+    bool ok = false;
+    Bridge.call("stop_offline_connection").result(ok);
+    return ok;
+}
+
+
+// ------------------------------------------------------------
 // Menu and water selection
 // ------------------------------------------------------------
 
@@ -568,6 +623,10 @@ MainMode selectMainMode()
             if (selectedMode == MainMode::Collect)
             {
                 selectedMode = MainMode::Test;
+            }
+            else if (selectedMode == MainMode::Test)
+            {
+                selectedMode = MainMode::Offline;
             }
             else
             {
@@ -1059,7 +1118,12 @@ void testWorkflow()
 
         if (pressed(BLUE_BUTTON_PIN))
         {
-            drawReportQr();
+            const uint32_t* qrRows =
+                offlineConnectionActive()
+                    ? OFFLINE_QR_ROWS
+                    : NORMAL_QR_ROWS;
+
+            drawReportQr(qrRows);
 
             while (!pressed(WHITE_BUTTON_PIN))
             {
@@ -1073,6 +1137,147 @@ void testWorkflow()
         }
 
         delay(10);
+    }
+}
+
+
+void offlineWorkflow()
+{
+    bool active = offlineConnectionActive();
+
+    if (!active)
+    {
+        drawMessage(
+            "OFFLINE CONNECTION",
+            "START WI-FI?",
+            "WHITE=START BLUE=BACK"
+        );
+
+        while (true)
+        {
+            if (pressed(BLUE_BUTTON_PIN))
+            {
+                return;
+            }
+
+            if (pressed(WHITE_BUTTON_PIN))
+            {
+                break;
+            }
+
+            delay(10);
+        }
+
+        drawMessage(
+            "OFFLINE CONNECTION",
+            "STARTING",
+            "please wait"
+        );
+
+        if (!startOfflineConnection())
+        {
+            drawMessage(
+                "NETWORK ERROR",
+                "NOT STARTED",
+                "WHITE = MENU"
+            );
+
+            while (!pressed(WHITE_BUTTON_PIN))
+            {
+                delay(10);
+            }
+
+            return;
+        }
+
+        active = true;
+    }
+
+    while (active)
+    {
+        drawMessage(
+            "WATERLENS WI-FI",
+            "ACTIVE",
+            "WHITE=QR BLUE OPT"
+        );
+
+        while (true)
+        {
+            if (pressed(WHITE_BUTTON_PIN))
+            {
+                drawReportQr(OFFLINE_QR_ROWS);
+
+                while (!pressed(WHITE_BUTTON_PIN))
+                {
+                    delay(10);
+                }
+
+                break;
+            }
+
+            BlueAction blueAction = readBlueAction();
+
+            if (blueAction == BlueAction::LongPress)
+            {
+                return;
+            }
+
+            if (blueAction == BlueAction::ShortPress)
+            {
+                drawMessage(
+                    "OFFLINE CONNECTION",
+                    "STOP WI-FI?",
+                    "WHITE=STOP BLUE=BACK"
+                );
+
+                while (true)
+                {
+                    if (pressed(BLUE_BUTTON_PIN))
+                    {
+                        break;
+                    }
+
+                    if (pressed(WHITE_BUTTON_PIN))
+                    {
+                        drawMessage(
+                            "NORMAL WI-FI",
+                            "RESTORING",
+                            "please wait"
+                        );
+
+                        if (stopOfflineConnection())
+                        {
+                            drawMessage(
+                                "NORMAL WI-FI",
+                                "RESTORED",
+                                "WHITE = MENU"
+                            );
+                        }
+                        else
+                        {
+                            drawMessage(
+                                "NETWORK ERROR",
+                                "NOT RESTORED",
+                                "WHITE = MENU"
+                            );
+                        }
+
+                        while (!pressed(WHITE_BUTTON_PIN))
+                        {
+                            delay(10);
+                        }
+
+                        return;
+                    }
+
+                    delay(10);
+                }
+
+                break;
+            }
+
+            delay(10);
+        }
     }
 }
 
@@ -1092,9 +1297,6 @@ void setup()
     pinMode(TDS_PIN, INPUT);
     pinMode(TURBIDITY_PIN, INPUT);
     pinMode(ORP_PIN, INPUT);
-
-    pinMode(ORP_CAL_PIN, OUTPUT);
-    digitalWrite(ORP_CAL_PIN, LOW);
 
     pinMode(WHITE_BUTTON_PIN, INPUT_PULLUP);
     pinMode(BLUE_BUTTON_PIN, INPUT_PULLUP);
@@ -1142,8 +1344,12 @@ void loop()
     {
         collectWorkflow();
     }
-    else
+    else if (mode == MainMode::Test)
     {
         testWorkflow();
+    }
+    else
+    {
+        offlineWorkflow();
     }
 }
