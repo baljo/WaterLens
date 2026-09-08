@@ -1,4 +1,4 @@
-# WaterLens
+WaterLens
 Edge AI water analysis with Arduino UNO Q
 
 WaterLens is an experimental water-analysis prototype built with the Arduino UNO Q, four Grove water sensors, Edge Impulse machine learning, and a local web dashboard.
@@ -27,7 +27,7 @@ WaterLens explores Edge AI, sensor fusion, time-series classification, anomaly d
 | Grove TDS Sensor       | Total dissolved solids proxy   | A1         |
 | Grove Turbidity Sensor | Optical turbidity measurement  | A2         |
 | Grove ORP Pro          | Oxidation-reduction potential  | A3         |
-| Grove Dual Button      | Local user interface           | D2 Grove port |
+| Grove Dual Button      | Local user interface           | D2 / D3    |
 | Grove 0.96" OLED       | Instructions and status        | I²C        |
 
 Measurements are performed in a 400 mL laboratory beaker.
@@ -40,12 +40,11 @@ A custom holder is used to keep the turbidity sensor at a repeatable position in
 
 Each complete sample contains:
 
-* 100 time steps per channel
+* 100 time steps
 * 100 ms sampling interval
 * 10 Hz sampling frequency
-* approximately 10 seconds of data per channel
+* approximately 10 seconds of data
 * four sensor channels
-* two sequential 10-second measurement phases
 
 The CSV format is:
 
@@ -84,9 +83,9 @@ The TDS probe is then inserted and its 10-second measurement is started with the
 
 The application combines the corresponding measurements into one four-channel CSV sample.
 
-The four values in each stored row should therefore not be interpreted as physically simultaneous measurements: the TDS sequence is recorded in the second measurement phase after the pH, ORP, and turbidity sequence.
+The four values in each stored row should therefore not be interpreted as physically simultaneous measurements: the TDS sequence is recorded immediately after the pH, ORP, and turbidity sequence.
 
-This two-stage method was chosen because the TDS measurement can electrically interfere with the other sensors when all probes are used together in the same small water sample.
+This two-stage method was chosen to provide a repeatable practical measurement procedure while avoiding unnecessary interaction between probes.
 
 ---
 
@@ -343,11 +342,11 @@ Measured water-temperature compensation is not currently available.
 
 ORP is displayed as an approximate millivolt value.
 
-The current value is shown without a stored calibration offset, so it should be treated as indicative rather than as a calibrated reference measurement.
+Its accuracy depends on calibration and any required sensor offset.
 
 ## Turbidity
 
-The current conversion is an uncalibrated estimate based on an approximate sensor response relationship.
+The current conversion uses an approximate sensor response relationship.
 
 The displayed NTU value should therefore be treated as indicative rather than as a calibrated laboratory measurement.
 
@@ -375,7 +374,7 @@ The raw measurements are therefore retained and displayed alongside the converte
 
 # Experimental status
 
-The prototype can currently compare measurements with several controlled sample groups and can independently compare them with the learned tap-water reference.
+The prototype can currently distinguish several controlled sample groups and can independently compare measurements with the learned tap-water reference.
 
 However, the present results should be interpreted in the context of the dataset used to create them.
 
@@ -475,7 +474,6 @@ Important components include:
 ```text
 main.py
 infer_water.py
-interpret_water.py
 model.eim
 anomaly.eim
 labels.txt
@@ -496,10 +494,6 @@ Main application logic, including:
 ## `infer_water.py`
 
 Handles local Edge Impulse inference and processing of the deployed models.
-
-## `interpret_water.py`
-
-Generates the constrained local-LLM interpretation from the measured facts and inference results.
 
 ## `model.eim`
 

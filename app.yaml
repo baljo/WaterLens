@@ -1,0 +1,7 @@
+name: Water sensor smoke test
+description: "Files:"
+ports:
+- 8000
+bricks:
+- arduino:llm: {}
+icon: 😀
