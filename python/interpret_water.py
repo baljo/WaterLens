@@ -1,10 +1,14 @@
-# Generates a concise, validated UNO Q local-LLM synthesis and exposes explicit offline Wi-Fi controls to the MCU. 2026-09-08 21:24 Europe/Helsinki, Thomas Vikström.
+# Generates validated local-LLM synthesis, exposes explicit offline Wi-Fi controls, and enables WaterLens dashboard branding. 2026-09-08 21:40 Europe/Helsinki, Thomas Vikström.
 
 import re
 
 from arduino.app_bricks.llm import LargeLanguageModel
 from arduino.app_utils import Bridge
+from dashboard_branding import install_dashboard_branding
 from networkcontrol import return_to_wifi, start_hotspot, status as network_status
+
+
+install_dashboard_branding()
 
 
 SYSTEM_PROMPT = """
