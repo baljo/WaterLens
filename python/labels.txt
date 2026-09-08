@@ -1,0 +1,5 @@
+1,Tap_water
+2,Sea_water
+3,Narrow_ditch
+4,Wide_ditch
+5,Wide_ditch_diluted
