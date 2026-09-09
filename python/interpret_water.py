@@ -1,8 +1,14 @@
-# Generates a concise, validated UNO Q local-LLM synthesis without repeating dashboard values or making unsupported safety claims. 2026-09-06 20:58 Europe/Helsinki, Thomas Vikström.
+# Generates validated local-LLM synthesis, exposes explicit offline Wi-Fi controls, and enables WaterLens dashboard branding. 2026-09-08 21:40 Europe/Helsinki, Thomas Vikström.
 
 import re
 
 from arduino.app_bricks.llm import LargeLanguageModel
+from arduino.app_utils import Bridge
+from dashboard_branding import install_dashboard_branding
+from networkcontrol import return_to_wifi, start_hotspot, status as network_status
+
+
+install_dashboard_branding()
 
 
 SYSTEM_PROMPT = """
@@ -286,6 +292,45 @@ Do not use headings or bullet points.
         )
 
     return result
+
+
+# ------------------------------------------------------------
+# Explicit network controls exposed to the MCU through Bridge
+# ------------------------------------------------------------
+
+
+def start_offline_connection():
+    """Switch wlan0 to the already-tested WaterLens hotspot profile."""
+    try:
+        result = start_hotspot()
+        return bool(result.get("ok") and result.get("hotspot"))
+    except Exception as error:
+        print(f"OFFLINE CONNECTION ERROR: {error}")
+        return False
+
+
+def stop_offline_connection():
+    """Leave hotspot mode and let NetworkManager reconnect a saved Wi-Fi profile."""
+    try:
+        result = return_to_wifi()
+        return bool(result.get("ok") and not result.get("hotspot"))
+    except Exception as error:
+        print(f"NORMAL WI-FI RESTORE ERROR: {error}")
+        return False
+
+
+def offline_connection_active():
+    """Report whether wlan0 currently uses the WaterLens hotspot profile."""
+    try:
+        return bool(network_status().get("hotspot"))
+    except Exception as error:
+        print(f"NETWORK STATUS ERROR: {error}")
+        return False
+
+
+Bridge.provide("start_offline_connection", start_offline_connection)
+Bridge.provide("stop_offline_connection", stop_offline_connection)
+Bridge.provide("offline_connection_active", offline_connection_active)
 
 
 if __name__ == "__main__":
