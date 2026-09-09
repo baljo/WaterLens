@@ -9,7 +9,7 @@ The system records a multichannel sensor pattern from a water sample and evaluat
 1. a multiclass model compares the measurement with previously learned sample groups;
 2. a separate anomaly model compares summary features from the measurement with a learned tap-water reference.
 
-All normal inference runs locally on the UNO Q after the models have been deployed. WaterLens also provides an explicit **Offline Connection** mode that creates a direct local Wi-Fi connection for accessing the dashboard without relying on an existing Wi-Fi network or Internet connection.
+All normal inference runs locally on the UNO Q after the models have been deployed. WaterLens also provides an explicit **Offline Mode** mode that creates a direct local Wi-Fi connection for accessing the dashboard without relying on an existing Wi-Fi network or Internet connection.
 
 > **Important:** WaterLens is an experimental Edge AI and sensor-fusion prototype. It is not a certified analytical instrument and must not be used to determine whether water is safe to drink.
 
@@ -124,11 +124,11 @@ Pressing the blue button after a test displays a dashboard QR code. The QR desti
 - normal local network: `http://uno-q.local:8000`
 - WaterLens offline Wi-Fi: `http://10.42.0.1:8000`
 
-## 3. Offline Connection
+## 3. Offline Mode
 
-Offline Connection is deliberately selected by the user from the OLED menu. WaterLens does **not** automatically switch into hotspot mode merely because normal Wi-Fi is temporarily unavailable or slow.
+Offline Mode is deliberately selected by the user from the OLED menu. WaterLens does **not** automatically switch into hotspot mode merely because normal Wi-Fi is temporarily unavailable or slow.
 
-When Offline Connection is started, the UNO Q activates the WaterLens Wi-Fi network. A phone or other device can join that network and open the dashboard directly.
+When Offline Mode is started, the UNO Q activates the WaterLens Wi-Fi network. A phone or other device can join that network and open the dashboard directly.
 
 Current prototype settings:
 
@@ -138,7 +138,7 @@ Password: waterlens123
 Dashboard: http://10.42.0.1:8000
 ```
 
-When Offline Connection is stopped, the network-control helper first attempts to restore the exact Wi-Fi profile that was active before hotspot mode was started. A saved-profile fallback is also available if the helper has restarted while hotspot mode was active.
+When Offline Mode is stopped, the network-control helper first attempts to restore the exact Wi-Fi profile that was active before hotspot mode was started. A saved-profile fallback is also available if the helper has restarted while hotspot mode was active.
 
 ### One-time NetworkManager setup
 
@@ -181,7 +181,7 @@ ipv4.method:            shared
 ipv4.addresses:         10.42.0.1/24
 ```
 
-There is normally no need to run `nmcli connection up Hotspot` manually. Selecting **Offline Connection** from the WaterLens OLED menu performs that activation, while stopping Offline Connection returns to the Wi-Fi profile that was active beforehand.
+There is normally no need to run `nmcli connection up Hotspot` manually. Selecting **Offline Mode** from the WaterLens OLED menu performs that activation, while stopping Offline Mode returns to the Wi-Fi profile that was active beforehand.
 
 Keeping `connection.autoconnect` disabled is intentional: the UNO Q should not enter hotspot mode automatically during boot or merely because normal Wi-Fi association is slow.
 
@@ -332,7 +332,7 @@ The dashboard shows the most recent test and currently includes:
 - local timestamp
 - local AI interpretation
 
-The dashboard can be opened from another device either through the normal local network or through the explicit WaterLens Offline Connection mode.
+The dashboard can be opened from another device either through the normal local network or through the explicit WaterLens Offline Mode mode.
 
 ---
 
@@ -505,11 +505,11 @@ Apply the WaterLens branding and embedded logo to the local dashboard without re
 
 ## `sketch/sketch.ino`
 
-Runs the MCU-side OLED and button interface, sampling workflows, test workflow, QR-code display and the explicit Offline Connection menu.
+Runs the MCU-side OLED and button interface, sampling workflows, test workflow, QR-code display and the explicit Offline Mode menu.
 
 ## `bricks/networkcontrol/`
 
-Custom App Lab brick that communicates with NetworkManager through the host D-Bus socket. It activates the existing WaterLens hotspot profile and restores normal Wi-Fi when Offline Connection is stopped.
+Custom App Lab brick that communicates with NetworkManager through the host D-Bus socket. It activates the existing WaterLens hotspot profile and restores normal Wi-Fi when Offline Mode is stopped.
 
 ## `model.eim`
 
@@ -547,7 +547,7 @@ Currently operational:
 - local timestamp handling
 - mobile browser access
 - QR-code dashboard access
-- explicit menu-controlled Offline Connection mode
+- explicit menu-controlled Offline Mode mode
 - direct WaterLens Wi-Fi dashboard access
 - restoration of the previous normal Wi-Fi profile after offline mode
 - WaterLens dashboard branding
