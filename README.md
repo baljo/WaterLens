@@ -1,14 +1,17 @@
 # WaterLens
-Edge AI water analysis with Arduino UNO Q
 
-WaterLens is an experimental water-analysis prototype built with the Arduino UNO Q, four Grove water sensors, Edge Impulse machine learning, and a local web dashboard.
+**Edge AI water analysis with Arduino UNO Q**
+
+WaterLens is an experimental water-analysis prototype built with the **Arduino UNO Q**, four Grove water sensors, **Edge Impulse** machine learning, a local web dashboard, and a local AI interpretation layer.
 
 The system records a multichannel sensor pattern from a water sample and evaluates it in two complementary ways:
 
-1. a multiclass model compares the sample with previously learned sample groups;
-2. a separate anomaly model compares it with a learned tap-water reference.
+1. a multiclass model compares the measurement with previously learned sample groups;
+2. a separate anomaly model compares summary features from the measurement with a learned tap-water reference.
 
-WaterLens explores Edge AI, sensor fusion, time-series classification, anomaly detection, and local AI interpretation using inexpensive sensors.
+All normal inference runs locally on the UNO Q after the models have been deployed. WaterLens also provides an explicit **Offline Connection** mode that creates a direct local Wi-Fi connection for accessing the dashboard without relying on an existing Wi-Fi network or Internet connection.
+
+> **Important:** WaterLens is an experimental Edge AI and sensor-fusion prototype. It is not a certified analytical instrument and must not be used to determine whether water is safe to drink.
 
 ---
 
@@ -16,23 +19,21 @@ WaterLens explores Edge AI, sensor fusion, time-series classification, anomaly d
 
 ## Main controller
 
-* Arduino UNO Q, 4 GB
-* Grove Base Shield V2.0
+- Arduino UNO Q, 4 GB
+- Grove Base Shield V2.0
 
-## Sensors and connections
+## Sensors and user interface
 
-| Sensor                 | Purpose                        | Connection |
-| ---------------------- | ------------------------------ | ---------- |
-| Grove pH Sensor Kit    | pH-related voltage measurement | A0         |
-| Grove TDS Sensor       | Total dissolved solids proxy   | A1         |
-| Grove Turbidity Sensor | Optical turbidity measurement  | A2         |
-| Grove ORP Pro          | Oxidation-reduction potential  | A3         |
-| Grove Dual Button      | Local user interface           | D2 / D3    |
-| Grove 0.96" OLED       | Instructions and status        | I²C        |
+| Device | Purpose | Connection |
+| --- | --- | --- |
+| Grove pH Sensor Kit | pH-related voltage measurement | A0 |
+| Grove TDS Sensor | Total dissolved solids proxy | A1 |
+| Grove Turbidity Sensor | Optical turbidity measurement | A2 |
+| Grove ORP Pro | Oxidation-reduction potential | A3 |
+| Grove Dual Button | Local user interface | Grove digital port D2; the two button signals use D2 and D3 |
+| Grove 0.96" OLED | Instructions, status, results and QR codes | I²C |
 
-Measurements are performed in a 400 mL laboratory beaker.
-
-A custom holder is used to keep the turbidity sensor at a repeatable position in the sample.
+Measurements are performed using laboratory beakers containing the same water sample. A custom 3D-printed holder keeps the turbidity sensor at a repeatable position in the sample.
 
 ---
 
@@ -40,11 +41,11 @@ A custom holder is used to keep the turbidity sensor at a repeatable position in
 
 Each complete sample contains:
 
-* 100 time steps
-* 100 ms sampling interval
-* 10 Hz sampling frequency
-* approximately 10 seconds of data
-* four sensor channels
+- 100 time steps
+- 100 ms sampling interval
+- 10 Hz sampling frequency
+- approximately 10 seconds of data per phase
+- four sensor channels
 
 The CSV format is:
 
@@ -61,46 +62,44 @@ Example:
 ...
 ```
 
----
-
 ## Two-stage measurement
 
-A complete measurement is collected in two phases.
+A complete WaterLens measurement is collected in two phases.
 
 ### Phase 1
 
-The following probes are placed in the water:
+The following probes are placed in the first beaker:
 
-* pH
-* ORP
-* turbidity
+- pH
+- ORP
+- turbidity
 
-The white button starts the 10-second measurement.
+The **white button** starts the 10-second measurement.
 
 ### Phase 2
 
-The TDS probe is then inserted and its 10-second measurement is started with the blue button.
+The TDS probe is placed in a second beaker containing the same water sample. The **blue button** starts the second 10-second measurement.
 
-The application combines the corresponding measurements into one four-channel CSV sample.
+The application then combines the two sequences row by row into one four-channel CSV sample.
 
-The four values in each stored row should therefore not be interpreted as physically simultaneous measurements: the TDS sequence is recorded immediately after the pH, ORP, and turbidity sequence.
+The four values in a stored row are therefore **not physically simultaneous measurements**. The TDS value was recorded during the second phase, immediately after the pH, ORP and turbidity sequence.
 
-This two-stage method was chosen to provide a repeatable practical measurement procedure while avoiding unnecessary interaction between probes.
+This two-stage procedure provides a repeatable workflow while reducing unwanted interaction between probes.
 
 ---
 
 # Operating modes
 
-The application provides two main modes.
+The OLED menu currently provides three explicit operating modes.
 
-## Collect data
+## 1. Collect Data
 
-Used to create datasets for Edge Impulse.
+Used to create labelled datasets for Edge Impulse.
 
 The OLED guides the user through:
 
 1. sample-group selection
-2. first sensor measurement
+2. pH + ORP + turbidity measurement
 3. TDS measurement
 4. save or discard
 
@@ -112,13 +111,40 @@ Sea_water.004.csv
 Wide_ditch.003.csv
 ```
 
----
+After saving a sample, additional measurements can be collected without restarting the application. The user can also change the active label or return to the main menu.
 
-## Test
+## 2. Test Water
 
-Test mode collects a temporary sample without adding it to the training dataset.
+Test Water collects a temporary sample without adding it to the training dataset.
 
-The sample is evaluated locally using the deployed Edge Impulse models, and the result is shown on the web dashboard.
+The sample is evaluated locally using both deployed Edge Impulse models. The OLED shows the closest learned sample group and classifier confidence. The full result is available on the local web dashboard, including the tap-water reference result and anomaly score.
+
+Pressing the blue button after a test displays a dashboard QR code. The QR destination automatically follows the current network mode:
+
+- normal local network: `http://uno-q.local:8000`
+- WaterLens offline Wi-Fi: `http://10.42.0.1:8000`
+
+## 3. Offline Connection
+
+Offline Connection is deliberately selected by the user from the OLED menu. WaterLens does **not** automatically switch into hotspot mode merely because normal Wi-Fi is temporarily unavailable or slow.
+
+When Offline Connection is started, the UNO Q activates the WaterLens Wi-Fi network. A phone or other device can join that network and open the dashboard directly.
+
+Current prototype settings:
+
+```text
+SSID: WaterLens
+Password: waterlens123
+Dashboard: http://10.42.0.1:8000
+```
+
+When Offline Connection is stopped, the network-control helper first attempts to restore the exact Wi-Fi profile that was active before hotspot mode was started. A saved-profile fallback is also available if the helper has restarted while hotspot mode was active.
+
+### Current one-time network prerequisite
+
+The application currently expects a **NetworkManager connection profile named `Hotspot`** to already exist on the UNO Q. That profile provides the `WaterLens` SSID and the local `10.42.0.1` address used by the offline dashboard.
+
+The application controls this existing profile; it does not yet create the hotspot profile automatically. This provisioning step should therefore be treated as part of the current prototype setup rather than as a fully automated installation process.
 
 ---
 
@@ -134,23 +160,19 @@ Wide_ditch
 Wide_ditch_diluted
 ```
 
-These are identifiers for the specific sample groups used during development.
+These are identifiers for the specific sample groups used during development. They are **not general scientific categories of water**.
 
-They are **not general scientific categories of water**.
+For example, `Narrow_ditch` identifies measurements collected from one particular source used in this project. It does not mean that the model has learned a general class representing water from narrow ditches.
 
-For example, `Narrow_ditch` identifies samples collected from one particular source used in this project. It does not imply that the model has learned a general class representing water from narrow ditches.
-
-The same applies to the other location-based working labels.
+The dashboard converts these working identifiers into more readable names where appropriate.
 
 ---
 
 # Edge Impulse models
 
-The project uses **two separate Edge Impulse projects** because the classification and anomaly-detection tasks answer different questions and require different training data.
+WaterLens uses **two separate Edge Impulse projects** because classification and anomaly detection answer different questions and require different training data.
 
 Both models are exported as Linux `.eim` models and run locally on the UNO Q.
-
----
 
 ## 1. Multiclass classification project
 
@@ -160,14 +182,14 @@ Its purpose is to answer:
 
 > Which of the known sample groups does this new measurement most closely resemble?
 
-The input consists of four sensor channels:
+The classifier uses the complete four-channel raw sequence:
 
-* pH raw ADC
-* ORP raw ADC
-* turbidity raw ADC
-* TDS raw ADC
+- pH raw ADC
+- ORP raw ADC
+- turbidity raw ADC
+- TDS raw ADC
 
-at 10 Hz over a 10-second window.
+at 10 Hz over the 100-row sample window.
 
 The deployed model is:
 
@@ -175,15 +197,9 @@ The deployed model is:
 model.eim
 ```
 
-The classifier returns one score for each learned sample group.
+The model returns one score for each learned sample group. The application currently reports the class with the largest score and displays its confidence.
 
-The application reports the class with the largest score when its confidence exceeds the selected acceptance threshold.
-
-If no class exceeds the threshold, the result can instead be shown as uncertain.
-
-The confidence threshold is an application-level decision criterion and is still being evaluated. Changing the threshold changes whether a result is accepted; it does not change or improve the trained neural network.
-
----
+Classifier confidence expresses preference among the learned classes. It does not prove the physical origin of a new sample, and a high score does not mean that the measurement necessarily belongs to a familiar real-world category outside the development dataset.
 
 ## 2. Tap-water anomaly project
 
@@ -191,34 +207,25 @@ Anomaly detection is implemented in a **separate Edge Impulse project**.
 
 Its purpose is different:
 
-> How closely does this new measurement resemble the tap-water measurements used as the normal reference?
+> How closely does this measurement resemble the tap-water measurements used as the reference?
 
-### Training data
+The anomaly project is trained using **tap-water samples only**. In the current impulse, summary features derived from the four sensor channels are used by the anomaly model rather than the complete 400-value time sequence.
 
-The anomaly model is trained using **tap-water samples only**.
-
-These define the reference distribution that the anomaly detector learns as normal.
-
-### Testing data
-
-The test data contains both:
-
-* tap-water samples
-* samples from other water groups
-
-This makes it possible to examine whether new tap-water measurements remain within the learned reference distribution while other sample types produce larger anomaly scores.
-
-The deployed anomaly model is:
+The deployed model is:
 
 ```text
 anomaly.eim
 ```
 
-The anomaly score is compared with a selected threshold.
+The anomaly score is compared with the application threshold. In the current prototype this threshold is:
 
-A lower score indicates greater similarity to the learned tap-water reference, while a higher score indicates a larger deviation from that reference.
+```text
+20.0
+```
 
-The numerical anomaly score has meaning only relative to this trained model and its selected threshold. It is not a universal water-quality scale.
+A lower score indicates greater similarity to the learned tap-water reference, while a higher score indicates a larger deviation from it.
+
+The numerical anomaly score and threshold are specific to this trained model and dataset. They are not universal water-quality scales.
 
 ---
 
@@ -234,19 +241,15 @@ The anomaly detector answers:
 
 > How similar is this measurement to the learned tap-water reference?
 
-For example, a new sample might still receive the highest classification score for `Tap_water` because it is closer to tap water than to any other known class.
+A new sample can, for example, receive the highest classification score for `Tap_water` because it is closer to that class than to the other learned classes, while the separate anomaly model can still indicate that the same measurement falls outside the variation represented by the tap-water reference data.
 
-The anomaly detector can independently indicate that the same sample lies outside the range represented by the tap-water reference data.
-
-This is useful because a multiclass neural network will normally still produce class scores even for measurements that differ from everything it has seen during training.
+The two results should not be treated as independent confirmation because they are derived from the same underlying sensor measurement.
 
 ---
 
-# Local inference
+# Local inference architecture
 
-Both exported models run directly on the Linux side of the UNO Q.
-
-The simplified processing chain is:
+Both exported Edge Impulse models run directly on the Linux side of the UNO Q.
 
 ```text
 Water sensors
@@ -264,7 +267,7 @@ Python application
      │
      ├── Sensor-value conversion
      │
-     └── Local LLM interpretation
+     └── Local interpretation layer
      │
      ▼
 Local web dashboard
@@ -276,90 +279,74 @@ No cloud connection is required for normal inference once the models have been d
 
 # Local dashboard
 
-The UNO Q hosts a local web dashboard showing the most recent measurement.
+The UNO Q hosts a local web dashboard branded **WaterLens with UNO Q**.
 
-The dashboard currently includes:
+The dashboard shows the most recent test and currently includes:
 
-* closest known sample group
-* classifier confidence
-* tap-water anomaly result
-* anomaly score
-* anomaly threshold
-* approximate physical sensor values
-* raw sensor averages
-* timestamp
-* local AI interpretation
+- closest known sample group
+- classifier confidence
+- tap-water reference result
+- anomaly score
+- anomaly threshold
+- approximate physical sensor values
+- raw sensor averages
+- local timestamp
+- local AI interpretation
 
-The dashboard can be opened from another device on the same local network.
-
-QR-code access is also supported.
+The dashboard can be opened from another device either through the normal local network or through the explicit WaterLens Offline Connection mode.
 
 ---
 
 # Local AI interpretation
 
-A local large language model is used as an explanation layer.
+A local language model is used only as an explanation layer. It does **not** perform the sensor classification or anomaly detection.
 
-The LLM does **not** perform the sensor classification or anomaly detection.
+The deterministic application first establishes the classifier and tap-water-reference results. The language model then receives constrained facts and is asked to produce a short human-readable synthesis.
 
-Instead, it receives structured results already produced by the measurement and inference pipeline and generates a short human-readable interpretation.
+The interpretation rules are designed to prevent the model from:
 
-Its instructions constrain it to:
+- inventing contaminants or causes
+- claiming the sample's actual origin
+- interpreting approximate sensor values as automatically good or bad
+- treating agreement between the two Edge AI outputs as independent verification
+- making drinking-water safety conclusions
 
-* use only supplied facts
-* treat classification labels as opaque names
-* avoid inventing contaminants or causes
-* avoid inventing thresholds
-* avoid unsupported interpretation of sensor values
-* avoid safety conclusions
-* avoid unnecessary repetition
+Generated text is validated before display. If the generated interpretation does not satisfy the application's constraints, a deterministic fallback explanation can be used instead.
 
-The deterministic sensor and Edge Impulse results remain the primary outputs.
+The deterministic measurement and Edge Impulse outputs remain the primary results.
 
 ---
 
 # Sensor-value conversion
 
-The machine-learning models use the raw sensor sequences.
+The machine-learning models use the raw sensor data. The dashboard additionally converts some values into approximate physical units for easier interpretation.
 
-The dashboard additionally converts some measurements into approximate physical units for easier interpretation.
-
-These converted values currently have different levels of calibration confidence.
+These conversions currently have different levels of calibration confidence.
 
 ## pH
 
-The pH conversion is approximate until the sensor has been calibrated against appropriate reference solutions.
+The displayed pH is approximate until the sensor is calibrated against appropriate reference solutions.
 
 ## TDS
 
-TDS is estimated from the measured sensor voltage.
-
-The result depends on sensor calibration and temperature.
-
-Measured water-temperature compensation is not currently available.
+TDS is estimated from sensor voltage. The result depends on calibration and temperature. Water temperature is not currently measured, so the dashboard calculation uses an assumed temperature.
 
 ## ORP
 
-ORP is displayed as an approximate millivolt value.
-
-Its accuracy depends on calibration and any required sensor offset.
+ORP is displayed as an approximate millivolt value. Its accuracy depends on calibration and any required sensor offset.
 
 ## Turbidity
 
-The current conversion uses an approximate sensor response relationship.
-
-The displayed NTU value should therefore be treated as indicative rather than as a calibrated laboratory measurement.
+The current conversion uses an approximate sensor response relationship. The displayed NTU value is therefore an indicative, uncalibrated estimate rather than a laboratory-grade turbidity measurement.
 
 ---
 
 # Raw data and physical units
 
-An important distinction in the project is that the Edge Impulse models can learn useful patterns directly from sensor ADC values even when the conversion into physical units is still imperfect.
-
-For example:
+An important distinction in WaterLens is that a machine-learning model can learn useful patterns from repeatable raw ADC measurements even when the conversion into physical units is still imperfect.
 
 ```text
-raw ADC pattern → suitable for machine-learning comparison
+raw ADC pattern → useful for machine-learning comparison
 ```
 
 does not automatically imply:
@@ -368,102 +355,78 @@ does not automatically imply:
 converted pH / ppm / mV / NTU → laboratory-grade measurement
 ```
 
-The raw measurements are therefore retained and displayed alongside the converted values.
+The raw sensor values are therefore retained and can also be inspected on the dashboard.
 
 ---
 
-# Experimental status
+# Experimental status and validation
 
-The prototype can currently distinguish several controlled sample groups and can independently compare measurements with the learned tap-water reference.
+WaterLens can currently distinguish the controlled sample groups represented in the development dataset and can independently compare measurements with the learned tap-water reference.
 
-However, the present results should be interpreted in the context of the dataset used to create them.
-
----
+These results must still be interpreted in the context of the dataset used to create the models.
 
 ## Dataset size and independence
 
-The dataset remains relatively small.
+The dataset remains relatively small. Many samples consist of repeated measurements from the same physical water source or container.
 
-Many samples consist of repeated measurements from the same physical water source or container.
-
-Such measurements provide useful information about short-term sensor variation, but they are not statistically equivalent to measurements from independent water sources.
+Such measurements provide useful information about short-term sensor variation but are not statistically equivalent to measurements from many independent water sources.
 
 A model can therefore obtain very good results on a held-out Edge Impulse test set while still requiring broader real-world validation.
 
----
+## Training, test and independent validation
 
-## Training, test, and independent validation
-
-The Edge Impulse training and test sets are useful for model development, but truly independent validation should also include newly collected samples that were not involved in model development.
+The Edge Impulse training and test sets are useful during model development, but stronger validation should include newly collected measurements that were not involved in model development.
 
 Useful future validation data includes measurements collected:
 
-* on different days
-* from fresh physical samples
-* from different containers
-* at different temperatures
-* from additional locations
-
-This is particularly important when assessing whether the classifier generalises beyond the exact samples represented in the dataset.
-
----
+- on different days
+- from fresh physical samples
+- from different containers
+- at different temperatures
+- from additional locations
 
 ## Temperature
 
-Sensor responses can vary with water temperature.
+Tap-water measurements collected at different temperatures have already shown that temperature and sampling conditions can change the observed sensor pattern.
 
-Tap-water measurements collected under different temperature conditions have already shown that temperature and sampling conditions can influence the measured sensor pattern.
-
-Future datasets should therefore include controlled temperature variation.
-
-Adding a water-temperature sensor would also allow explicit temperature compensation where appropriate.
-
----
+Future datasets should therefore include controlled temperature variation. Adding a water-temperature sensor would also allow explicit temperature compensation where appropriate.
 
 ## Classification confidence
 
-High classifier confidence means that the trained neural network strongly prefers one known class over the alternatives represented in its training data.
+Classifier confidence means that the trained neural network prefers one learned class over the alternatives represented in its training data. It does not prove the physical origin of the sample.
 
-It does not prove the physical origin of the sample.
-
-Likewise, a lower confidence result can reflect overlap between learned sample patterns rather than a malfunction of the model.
-
-The confidence threshold should ultimately be chosen using independent validation data rather than adjusted to make individual measurements pass.
-
----
+During development, borderline confidence results were treated as a reason to collect more representative data rather than simply lowering an acceptance threshold to obtain the expected label.
 
 ## Anomaly threshold
 
-The tap-water anomaly threshold is likewise specific to the anomaly model and dataset.
+The current tap-water anomaly threshold is specific to the present anomaly model and dataset. It should be further evaluated using held-out and genuinely independent tap-water measurements together with non-reference samples.
 
-It should be selected using held-out and independent tap-water measurements together with non-tap-water samples.
+The relevant trade-off is between:
 
-The objective is to understand the trade-off between:
-
-* accepting genuine tap-water variation
-* rejecting measurements that differ from the learned tap-water reference
+- accepting genuine tap-water variation
+- identifying measurements that differ from the learned tap-water reference
 
 ---
 
-# What the system does not measure
+# What WaterLens does not measure
 
 The four sensors measure broad electrical and optical properties of the water.
 
 They do not directly identify specific contaminants such as:
 
-* bacteria
-* heavy metals
-* pesticides
-* PFAS
-* hydrocarbons
+- bacteria
+- heavy metals
+- pesticides
+- PFAS
+- hydrocarbons
 
-The classifier recognises patterns present in its training data; it does not perform chemical identification.
+The classifier recognises patterns represented in its training data; it does not perform chemical identification.
 
 ---
 
 # Main software components
 
-The Python application is located under:
+The main Python application is located under:
 
 ```text
 /app/python/
@@ -472,28 +435,42 @@ The Python application is located under:
 Important components include:
 
 ```text
-main.py
-infer_water.py
-model.eim
-anomaly.eim
-labels.txt
-samples/
+python/main.py
+python/infer_water.py
+python/interpret_water.py
+python/dashboard_branding.py
+python/waterlens_brand.py
+python/model.eim
+python/anomaly.eim
+python/labels.txt
+python/samples/
+sketch/sketch.ino
+bricks/networkcontrol/
 ```
 
-## `main.py`
+## `python/main.py`
 
-Main application logic, including:
+Main Linux-side application logic, including sample storage, dashboard generation, timestamp handling and integration of inference and interpretation.
 
-* user interface
-* sampling workflow
-* local data storage
-* dashboard
-* result presentation
-* integration of inference and interpretation
+## `python/infer_water.py`
 
-## `infer_water.py`
+Runs the deployed Edge Impulse classifier and anomaly `.eim` models and returns deterministic inference results.
 
-Handles local Edge Impulse inference and processing of the deployed models.
+## `python/interpret_water.py`
+
+Provides the constrained local interpretation layer and exposes the explicit network-control functions to the MCU through the Arduino Bridge.
+
+## `python/dashboard_branding.py` and `python/waterlens_brand.py`
+
+Apply the WaterLens branding and embedded logo to the local dashboard without requiring external web assets.
+
+## `sketch/sketch.ino`
+
+Runs the MCU-side OLED and button interface, sampling workflows, test workflow, QR-code display and the explicit Offline Connection menu.
+
+## `bricks/networkcontrol/`
+
+Custom App Lab brick that communicates with NetworkManager through the host D-Bus socket. It activates the existing WaterLens hotspot profile and restores normal Wi-Fi when Offline Connection is stopped.
 
 ## `model.eim`
 
@@ -517,50 +494,50 @@ Contains locally collected CSV samples.
 
 Currently operational:
 
-* four-sensor acquisition
-* two-stage sampling procedure
-* sample labelling
-* local CSV storage
-* multiclass Edge Impulse classification
-* separate tap-water anomaly detection
-* local `.eim` inference on UNO Q
-* confidence-based uncertain classification
-* local dashboard
-* approximate sensor-value conversion
-* raw-value display
-* local LLM interpretation
-* local timestamp handling
-* mobile browser access
-* QR-code dashboard access
+- four-sensor acquisition
+- two-stage sampling procedure
+- sample labelling
+- local CSV storage
+- multiclass Edge Impulse classification
+- separate tap-water anomaly detection
+- local `.eim` inference on UNO Q
+- local dashboard
+- approximate sensor-value conversion
+- raw-value display
+- constrained local AI interpretation with deterministic fallback
+- local timestamp handling
+- mobile browser access
+- QR-code dashboard access
+- explicit menu-controlled Offline Connection mode
+- direct WaterLens Wi-Fi dashboard access
+- restoration of the previous normal Wi-Fi profile after offline mode
+- WaterLens dashboard branding
 
 ---
 
 # Possible next steps
 
-* collect more independent samples
-* collect samples over multiple days
-* increase temperature variation in the dataset
-* perform proper pH calibration
-* improve TDS calibration
-* improve turbidity calibration
-* verify ORP calibration
-* add measured water temperature
-* evaluate classifier confidence thresholds using independent data
-* further validate the anomaly threshold
-* investigate model behaviour for previously unseen water samples
-* reduce redundancy in the local LLM interpretation
-* move configurable thresholds and calibration constants into a configuration file
-* add field-network or hotspot mode
-* produce final photographs, diagrams, video, and project write-up
+- collect more independent samples
+- collect samples over multiple days
+- increase controlled temperature variation in the dataset
+- perform proper pH calibration
+- improve TDS calibration
+- improve turbidity calibration
+- verify ORP calibration
+- add measured water temperature
+- further validate the anomaly threshold
+- investigate model behaviour for previously unseen water samples
+- move configurable thresholds and calibration constants into a configuration file
+- make hotspot-profile provisioning and credentials configurable rather than preconfigured
+- add timestamped measurement history with optional location metadata
+- complete broader real-world validation
 
 ---
 
 # Scope and limitations
 
-This project is an experimental Edge AI and sensor-fusion prototype.
+WaterLens is an experimental Edge AI and sensor-fusion prototype intended to explore whether patterns from several inexpensive water sensors can be learned, compared and interpreted locally using embedded machine learning.
 
-Its purpose is to investigate whether patterns from several inexpensive water sensors can be learned and compared locally using embedded machine learning.
-
-The system is not a certified analytical instrument. Its classifications, anomaly scores, and approximate sensor conversions must not be used to establish whether water is safe to drink.
+The system is **not a certified analytical instrument**. Its classifications, anomaly scores and approximate sensor conversions must not be used to establish whether water is safe to drink.
 
 Proper assessment of drinking-water safety requires validated measurements and appropriate laboratory analysis.
