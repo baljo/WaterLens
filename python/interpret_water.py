@@ -1,4 +1,4 @@
-# Generates validated local-LLM synthesis, exposes explicit offline Wi-Fi controls, and enables WaterLens dashboard branding. 2026-09-08 21:40 Europe/Helsinki, Thomas Vikström.
+# Generates and validates local-LLM water-result synthesis while keeping anomaly decisions deterministic. 2026-09-09 18:18 Europe/Helsinki, Thomas Vikström.
 
 import re
 
@@ -74,8 +74,8 @@ def clean_generated_text(text):
     return " ".join(cleaned)
 
 
-def interpretation_is_valid(text):
-    """Reject unsupported safety/origin claims or incorrect attribution of model conclusions."""
+def interpretation_is_valid(text, relationship, reference_status):
+    """Reject unsafe wording and any contradiction of deterministic app conclusions."""
 
     normalized = " ".join(str(text).lower().split())
 
@@ -97,6 +97,8 @@ def interpretation_is_valid(text):
         "classifier proves",
         "reference model confirms the water",
         "reference model proves the water",
+        "anomaly score",
+        "reference threshold",
     ]
 
     if any(phrase in normalized for phrase in forbidden_phrases):
@@ -104,11 +106,64 @@ def interpretation_is_valid(text):
 
     sentences = [
         sentence.strip()
-        for sentence in re.split(r"(?<=[.!?])\\s+", str(text).strip())
+        for sentence in re.split(r"(?<=[.!?])\s+", str(text).strip())
         if sentence.strip()
     ]
 
-    return 2 <= len(sentences) <= 4 and len(str(text)) <= 850
+    if len(sentences) != 3 or len(str(text)) > 850:
+        return False
+
+    first_sentence = " ".join(sentences[0].lower().split())
+    classifier_text = (
+        first_sentence
+        .replace("non-tap-water", "non tap water")
+        .replace("tap-water", "tap water")
+    )
+
+    if relationship == "consistent":
+        if "consistent" not in first_sentence:
+            return False
+        if "different direction" in first_sentence or "conflict" in first_sentence:
+            return False
+    else:
+        if "consistent" in first_sentence:
+            return False
+        if not (
+            "different direction" in first_sentence
+            or "conflict" in first_sentence
+        ):
+            return False
+
+    if reference_status == "within":
+        if "within" not in first_sentence or "outside" in first_sentence:
+            return False
+    else:
+        if "outside" not in first_sentence or "within" in first_sentence:
+            return False
+
+    reference_indicates_tap = reference_status == "within"
+
+    if relationship == "consistent":
+        classifier_indicates_tap = reference_indicates_tap
+    else:
+        classifier_indicates_tap = not reference_indicates_tap
+
+    if classifier_indicates_tap:
+        if "tap water" not in classifier_text:
+            return False
+        if (
+            "not tap water" in classifier_text
+            or "non tap water" in classifier_text
+        ):
+            return False
+    else:
+        if not (
+            "not tap water" in classifier_text
+            or "non tap water" in classifier_text
+        ):
+            return False
+
+    return True
 
 
 def deterministic_fallback(relationship, reference_status):
@@ -182,17 +237,6 @@ def interpret_water_result(
             f"Unexpected tap-water reference status: {reference_status}"
         )
 
-    if relationship == "consistent":
-        relationship_fact = (
-            "The closest-sample-group classification and the tap-water "
-            "reference check point in the same general direction."
-        )
-    else:
-        relationship_fact = (
-            "The closest-sample-group classification and the tap-water "
-            "reference check point in different directions."
-        )
-
     if reference_status == "within":
         reference_fact = (
             "The application has established that the combined sensor pattern "
@@ -252,6 +296,7 @@ How to synthesize them:
 - If the relationship is conflicting, sentence 1 should clearly explain the
   two different directions.
 - Do not imply that agreement constitutes independent verification.
+- Do not mention anomaly scores, thresholds, or any numeric comparison.
 
 Available sensor readouts:
 {measurements_text if measurements_text else "- No sensor measurements supplied."}
@@ -266,7 +311,7 @@ Measurement limitations:
 Write exactly three concise sentences.
 
 Sentence 1:
-Synthesize the classifier and tap-water reference results.
+Synthesize the classifier and tap-water reference results exactly as supplied.
 
 Sentence 2:
 Explain that the models describe similarity to learned examples/reference
@@ -281,9 +326,13 @@ Do not use headings or bullet points.
 
     result = clean_generated_text(llm.chat(prompt))
 
-    if not interpretation_is_valid(result):
+    if not interpretation_is_valid(
+        result,
+        relationship=relationship,
+        reference_status=reference_status,
+    ):
         print(
-            "WARNING: Local LLM interpretation failed scientific/safety validation; "
+            "WARNING: Local LLM interpretation contradicted or failed validation; "
             "using deterministic fallback."
         )
         return deterministic_fallback(
