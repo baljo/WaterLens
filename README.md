@@ -140,11 +140,50 @@ Dashboard: http://10.42.0.1:8000
 
 When Offline Connection is stopped, the network-control helper first attempts to restore the exact Wi-Fi profile that was active before hotspot mode was started. A saved-profile fallback is also available if the helper has restarted while hotspot mode was active.
 
-### Current one-time network prerequisite
+### One-time NetworkManager setup
 
-The application currently expects a **NetworkManager connection profile named `Hotspot`** to already exist on the UNO Q. That profile provides the `WaterLens` SSID and the local `10.42.0.1` address used by the offline dashboard.
+The current implementation expects a **NetworkManager connection profile named `Hotspot`** on Wi-Fi interface `wlan0`. The application activates and deactivates that existing profile; it deliberately does not create or change hotspot configuration automatically at runtime.
 
-The application controls this existing profile; it does not yet create the hotspot profile automatically. This provisioning step should therefore be treated as part of the current prototype setup rather than as a fully automated installation process.
+Before creating anything, check whether a profile with that name already exists:
+
+```bash
+nmcli connection show Hotspot
+```
+
+If `Hotspot` already exists, do **not** create another profile with the same name. Verify or modify the existing profile instead.
+
+On a fresh UNO Q where the profile does not yet exist, create it without activating it:
+
+```bash
+nmcli connection add type wifi ifname wlan0 con-name Hotspot autoconnect no ssid WaterLens
+nmcli connection modify Hotspot 802-11-wireless.mode ap
+nmcli connection modify Hotspot ipv4.method shared ipv4.addresses 10.42.0.1/24
+nmcli connection modify Hotspot 802-11-wireless-security.key-mgmt wpa-psk
+nmcli connection modify Hotspot 802-11-wireless-security.psk waterlens123
+```
+
+If the shell account does not have permission to modify NetworkManager connections, run the same commands with the privileges required by that UNO Q installation, for example by prefixing them with `sudo` where appropriate.
+
+The profile can be inspected with:
+
+```bash
+nmcli -f connection.id,connection.autoconnect,802-11-wireless.ssid,802-11-wireless.mode,ipv4.method,ipv4.addresses connection show Hotspot
+```
+
+The relevant values should be:
+
+```text
+connection.id:          Hotspot
+connection.autoconnect: no
+802-11-wireless.ssid:   WaterLens
+802-11-wireless.mode:   ap
+ipv4.method:            shared
+ipv4.addresses:         10.42.0.1/24
+```
+
+There is normally no need to run `nmcli connection up Hotspot` manually. Selecting **Offline Connection** from the WaterLens OLED menu performs that activation, while stopping Offline Connection returns to the Wi-Fi profile that was active beforehand.
+
+Keeping `connection.autoconnect` disabled is intentional: the UNO Q should not enter hotspot mode automatically during boot or merely because normal Wi-Fi association is slow.
 
 ---
 
