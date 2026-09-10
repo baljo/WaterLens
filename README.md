@@ -332,7 +332,7 @@ The dashboard shows the most recent test and currently includes:
 - local timestamp
 - local AI interpretation
 
-The dashboard can be opened from another device either through the normal local network or through the explicit WaterLens Offline Mode mode.
+The dashboard can be opened from another device either through the normal local network or through the explicit WaterLens Offline Mode.
 
 ---
 
@@ -547,7 +547,7 @@ Currently operational:
 - local timestamp handling
 - mobile browser access
 - QR-code dashboard access
-- explicit menu-controlled Offline Mode mode
+- explicit menu-controlled Offline Mode
 - direct WaterLens Wi-Fi dashboard access
 - restoration of the previous normal Wi-Fi profile after offline mode
 - WaterLens dashboard branding
