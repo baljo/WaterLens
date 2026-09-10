@@ -9,7 +9,7 @@ The system records a multichannel sensor pattern from a water sample and evaluat
 1. a multiclass model compares the measurement with previously learned sample groups;
 2. a separate anomaly model compares summary features from the measurement with a learned tap-water reference.
 
-All normal inference runs locally on the UNO Q after the models have been deployed. WaterLens also provides an explicit **Offline Mode** mode that creates a direct local Wi-Fi connection for accessing the dashboard without relying on an existing Wi-Fi network or Internet connection.
+All normal inference runs locally on the UNO Q after the models have been deployed. WaterLens also provides an explicit **Offline Mode** that creates a direct local Wi-Fi connection for accessing the dashboard without relying on an existing Wi-Fi network or Internet connection.
 
 > **Important:** WaterLens is an experimental Edge AI and sensor-fusion prototype. It is not a certified analytical instrument and must not be used to determine whether water is safe to drink.
 
